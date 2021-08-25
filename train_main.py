@@ -43,9 +43,14 @@ def parse_arguments():
                                  help="choose model {'wide', 'deep', 'wide_deep'}")
     
     args, _ = arguments_parse.parse_known_args()
-
+    
     print(args)
+
     return args
+
+ args = parse_arguments()
+
+
 
 
 def input_wide_deep_fc():
@@ -132,7 +137,7 @@ def input_parse_exmp(serial_exmp):
                                           attention_probs_dropout_prob=0.2,
                                           do_return_2d_tensor=True,
                                           initializer_range=0.02,
-                                          batch_size=1,
+                                          batch_size=args.batch_size,
                                           from_seq_length=20,
                                           to_seq_length=20
                                          )
@@ -149,22 +154,22 @@ def input_parse_exmp(serial_exmp):
     return feats, tf.to_float(click)
 
 
-def train_input_fn(filenames, arguments):
+def train_input_fn(filenames):
     print(filenames)
     files = tf.data.Dataset.list_files(filenames)
     dataset = files.apply(tf.contrib.data.parallel_interleave(tf.data.TFRecordDataset,
-                                                              cycle_length=arguments.num_parallel_readers, 
+                                                              cycle_length=args.num_parallel_readers, 
                                                               sloppy=True))
     if arguments.shuffle_buffer_size > 0:
-        dataset = dataset.shuffle(arguments.shuffle_buffer_size)
+        dataset = dataset.shuffle(args.shuffle_buffer_size)
     dataset = dataset.map(input_parse_exmp, num_parallel_calls=16)
-    dataset = dataset.repeat(arguments.train_epoch).batch(arguments.batch_size).prefetch(1)
+    dataset = dataset.repeat(args.train_epoch).batch(args.batch_size).prefetch(1)
     print(dataset.output_types)
     print(dataset.output_shapes)
     return dataset
 
 
-def eval_input_fn(filenames, arguments):
+def eval_input_fn(filenames):
     """
     :param filenames:
     :param arguments:
@@ -173,23 +178,22 @@ def eval_input_fn(filenames, arguments):
     print(filenames)
     files = tf.data.Dataset.list_files(filenames)
     dataset = files.apply(tf.contrib.data.parallel_interleave(tf.data.TFRecordDataset,
-                                                              cycle_length=arguments.num_parallel_readers, 
+                                                              cycle_length=args.num_parallel_readers, 
                                                               sloppy=True))
     
     dataset = dataset.map(input_parse_exmp, num_parallel_calls=16)
     # Shuffle, repeat, and batch the examples.
-    dataset = dataset.batch(arguments.batch_size)
+    dataset = dataset.batch(args.batch_size)
     # Return the read end of the pipeline.
     return dataset
 
 
-def input_dataset_file(arguments):
+def input_dataset_file():
     """
-    :param arguments:
     :return:
     """
-    train_data = arguments.train
-    eval_data = arguments.test
+    train_data = args.train
+    eval_data = args.test
     if isinstance(train_data, str) and os.path.isdir(train_data):
         train_files = [train_data + "/" + x for x in os.listdir(train_data)  
                        if "part" in x ] if os.path.isdir(
@@ -227,27 +231,25 @@ def serving_input_fn():
     return tf.estimator.export.ServingInputReceiver(inputs, inputs)
 
 
-def build_estimator(arguments, run_config):
+def build_estimator(run_config):
     """
-    :param arguments:
     :param run_config:
     :return:
     """
-    wide_columns, deep_columns = input_wide_deep_fc()
 
-    if arguments.hidden_units is None:
+    if args.hidden_units is None:
         hidden_units = [128, 64, 32]
     else:
         hidden_units = arguments.hidden_units.split(',')
 
-    if arguments.model_type == "wide":
+    if args.model_type == "wide":
         model = tf.estimator.LinearClassifier(feature_columns=wide_columns,
                                               config=run_config)
-    elif arguments.model_type == "deep":
+    elif args.model_type == "deep":
         model = tf.estimator.DNNClassifier(
                                            feature_columns=deep_columns,
                                            hidden_units=hidden_units,
-                                           batch_norm=arguments.batch_norm,
+                                           batch_norm=args.batch_norm,
                                            config=run_config)
     else:
 
@@ -256,47 +258,45 @@ def build_estimator(arguments, run_config):
                                                          dnn_feature_columns=deep_columns,
                                                          dnn_hidden_units=hidden_units,
                                                          dnn_optimizer='Adam',
-                                                         batch_norm=arguments.batch_norm,
+                                                         batch_norm=args.batch_norm,
                                                          config=run_config)
     return model
 
 
-def main_fn(arguments):
+def main_fn():
     """
     :param arguments:
     :return:
     """
-    arguments = arguments[0]
 
     cfg = tf.ConfigProto(log_device_placement=True)
     cfg.gpu_options.allow_growth = True
 
-    run_cfg = tf.estimator.RunConfig().replace(model_dir=arguments.model_dir+"/checkpoint",
+    run_cfg = tf.estimator.RunConfig().replace(model_dir=args.model_dir+"/checkpoint",
                                                session_config=cfg,
                                                keep_checkpoint_max=1,
                                                save_summary_steps=2000,
-                                               save_checkpoints_steps=arguments.save_checkpoints_steps,
+                                               save_checkpoints_steps=args.save_checkpoints_steps,
                                                log_step_count_steps=2000)
 
     model = build_estimator(arguments, run_cfg)
-    train_files, eval_files = input_dataset_file(arguments)
+    train_files, eval_files = input_dataset_file()
     # train & evaluate
-    model.train(input_fn=lambda: train_input_fn(train_files, arguments))
-    results = model.evaluate(input_fn=lambda: eval_input_fn(eval_files, arguments), steps=5000)
+    model.train(input_fn=lambda: train_input_fn(train_files))
+    results = model.evaluate(input_fn=lambda: eval_input_fn(eval_files), steps=5000)
     for key in sorted(results):
         print("%s : %s" % (key, results[key]))
     print("end of evaluate")
     print("exporting model ...")
     if arguments.serving_input =='handout':
         serving_input_receiver_fn = serving_input_fn
-        model.export_savedmodel(arguments.model_dir+"/output_model", serving_input_receiver_fn)
+        model.export_savedmodel(args.model_dir+"/output_model", serving_input_receiver_fn)
         print("model saved")
 
     print("quit main")
 
 
 if __name__ == "__main__":
-    args = parse_arguments()
     tf.logging.set_verbosity(tf.logging.INFO)
-    tf.app.run(main=main_fn, argv=[args])
+    tf.app.run(main=main_fn)
 
