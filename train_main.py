@@ -86,6 +86,7 @@ def input_wide_deep_fc():
    
     return wide_columns, deep_columns
 
+wide_columns, deep_columns = input_wide_deep_fc()
 
 def input_parse_exmp(serial_exmp):
     """
@@ -94,7 +95,9 @@ def input_parse_exmp(serial_exmp):
     """
     click = fc.numeric_column("ctr_label", default_value=0, dtype=tf.int64)
     fea_columns = [click]
-    wide_columns, deep_columns = input_wide_deep_fc()
+    global wide_columns
+    global deep_columns
+    
     fea_columns += wide_columns
     fea_columns += deep_columns
 
@@ -118,7 +121,7 @@ def input_parse_exmp(serial_exmp):
     feats['user_seqs'] = tf.expand_dims(feats['user_seqs'],axis=-1,name='user_seqs')
     feats['user_seqs'] = tf.cast(feats['user_seqs'],tf.float32)
   
-    ## user seq attention
+    # user seq attention
     feats['seq_attion'] = attention_layer(from_tensor=feats['user_seqs'],
                                           to_tensor=feats['user_seqs'], 
                                           attention_mask=None,
@@ -131,7 +134,14 @@ def input_parse_exmp(serial_exmp):
                                           from_seq_length=20,
                                           to_seq_length=20
                                          )
-    feats['seq_attion'] = tf.reshape(feats['seq_attion'],(20,))
+    
+    seq_attion = fc.numeric_column("seq_attion",dtype=tf.float32)
+    bar_dead_ruler = fc.numeric_column("bar_dead_ruler",dtype=tf.float32)
+    minutes = fc.numeric_column("minutes",dtype=tf.float32)
+
+    deep_columns += [seq_attion]
+    wide_columns += [bar_dead_ruler,minutes]
+    
     click = feats.pop("ctr_label")
 
     return feats, tf.to_float(click)
@@ -141,7 +151,8 @@ def train_input_fn(filenames, arguments):
     print(filenames)
     files = tf.data.Dataset.list_files(filenames)
     dataset = files.apply(tf.contrib.data.parallel_interleave(tf.data.TFRecordDataset,
-                                                              cycle_length=arguments.num_parallel_readers, sloppy=True))
+                                                              cycle_length=arguments.num_parallel_readers, 
+                                                              sloppy=True))
     if arguments.shuffle_buffer_size > 0:
         dataset = dataset.shuffle(arguments.shuffle_buffer_size)
     dataset = dataset.map(input_parse_exmp, num_parallel_calls=16)
@@ -160,7 +171,9 @@ def eval_input_fn(filenames, arguments):
     print(filenames)
     files = tf.data.Dataset.list_files(filenames)
     dataset = files.apply(tf.contrib.data.parallel_interleave(tf.data.TFRecordDataset,
-                                                              cycle_length=arguments.num_parallel_readers, sloppy=True))
+                                                              cycle_length=arguments.num_parallel_readers, 
+                                                              sloppy=True))
+    
     dataset = dataset.map(input_parse_exmp, num_parallel_calls=16)
     # Shuffle, repeat, and batch the examples.
     dataset = dataset.batch(arguments.batch_size)
@@ -176,12 +189,14 @@ def input_dataset_file(arguments):
     train_data = arguments.train
     eval_data = arguments.test
     if isinstance(train_data, str) and os.path.isdir(train_data):
-        train_files = [train_data + "/" + x for x in os.listdir(train_data)  if "part" in x ] if os.path.isdir(
+        train_files = [train_data + "/" + x for x in os.listdir(train_data)  
+                       if "part" in x ] if os.path.isdir(
             train_data) else train_data
     else:
         train_files = train_data
     if isinstance(eval_data, str) and os.path.isdir(eval_data):
-        eval_files = [eval_data + "/" + x for x in os.listdir(eval_data) if "part" in x ] if os.path.isdir(
+        eval_files = [eval_data + "/" + x for x in os.listdir(eval_data) 
+                      if "part" in x ] if os.path.isdir(
             eval_data) else eval_data
     else:
         eval_files = eval_data
