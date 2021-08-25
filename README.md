@@ -1,3 +1,5 @@
+
+转载 来自 公众号 [夕小瑶的卖萌屋](https://mp.weixin.qq.com/s/B2GNzNfPqcY2_OxPR2aRng)
 # ![图片](https://mmbiz.qpic.cn/mmbiz_png/5fknb41ib9qGgLWvsh7FneiaP2gCaAicRADII3PBKkwp8m2ueHpAqkR9X4BlbO8INA7RjovicjGMw1kJ2RW0avOhbg/640?wx_fmt=png&tp=webp&wxfrom=5&wx_lazy=1&wx_co=1)前言![图片](https://mmbiz.qpic.cn/mmbiz_png/5fknb41ib9qGgLWvsh7FneiaP2gCaAicRADII3PBKkwp8m2ueHpAqkR9X4BlbO8INA7RjovicjGMw1kJ2RW0avOhbg/640?wx_fmt=png&tp=webp&wxfrom=5&wx_lazy=1&wx_co=1)
 
 CTR（click through rate）预估模型是广告推荐领域的核心问题。早期主要是使用LR（线性回归）+人工特征工程的机器学习方法，但是存在人工组合特征工程成本较高，不同任务难以复用的问题。后来随着FM因子分解机的出现，提出了使用二阶特征自动交叉的方法，缓解了人工组合特征的难题。之后2014年Facebook使用GBDT+LR方案，提出了树模型构建组合特征的思路。2015年后，由于深度学习的流行，业界主流的CTR模型从采用经典DNN模型演变到结合浅层的Wide&deep模型，再到结合二阶特征交叉的DeepFM模型，深度学习开始全面应用在CTR预估问题上。
