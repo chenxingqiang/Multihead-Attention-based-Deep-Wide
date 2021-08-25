@@ -2,11 +2,7 @@
 # encoding: utf-8
 
 import argparse
-import json
-import math
-import six
 import os
-import logging
 import tensorflow as tf
 from tensorflow import feature_column as fc
 
@@ -51,24 +47,26 @@ def parse_arguments():
  args = parse_arguments()
 
 
-
-
 def input_wide_deep_fc():
     """
     :return:
     """
 
-    col_names = ["user_id", "item_id", "expotime", "sceneid", "user_seq_item_id",
-                "item_price", "item_cate_id", "item_type", "item_mid_id",
-                 "item_shopid", "item_position", "item_labelid", "item_state",
+    col_names = ["user_id", "item_id", "expotime", 
+                 "sceneid", "user_seq_item_id",
+                 "item_price", "item_cate_id", "item_type",
+                 "item_mid_id","item_shopid", "item_position", 
+                 "item_labelid", "item_state",
                  "item_statistic", "ctr_label"]
     print(col_names)
+    
+    
     # id feature to embedding
     user_id_hash = fc.categorical_column_with_hash_bucket("user_id", 10e8, dtype=tf.int64)
     item_id_hash = fc.categorical_column_with_hash_bucket("item_id", 5e5, dtype=tf.int64)
  
     # numeric values
-    item__statistc_values = fc.numeric_column("item_statistic", shape=[20], dtype=tf.float32)
+    item_statistic_values = fc.numeric_column("item_statistic", shape=[20], dtype=tf.float32)
 
     # embeddings
     user_id_emb = fc.embedding_column(user_id_hash,32)
@@ -88,8 +86,8 @@ def input_wide_deep_fc():
                     fc.categorical_column_with_hash_bucket("item_state", 2, dtype=tf.string),
                     ]
 
-    deep_columns = [item_statistc_values]
-    deep_columns += item_id_share_emb
+    
+    deep_columns = [user_id_emb,item_statistic_values,item_id_share_emb]
    
     return wide_columns, deep_columns
 
@@ -109,11 +107,13 @@ def input_parse_exmp(serial_exmp):
     fea_columns += deep_columns
 
     feature_spec = tf.feature_column.make_parse_example_spec(fea_columns)
+    
     other_feature_spec = {
-        "expotime": tf.FixedLenFeature([], tf.string),
-        "user_seq_item_id": tf.FixedLenFeature([20], tf.int64)}
+        "expotime": tf.FixedLenFeature([], tf.string)}
+    
     feature_spec.update(other_feature_spec)
     feats = tf.parse_single_example(serial_exmp, features=feature_spec)
+    
     feats['num_item_ids'] = tf.count_nonzero(feats['user_seq_item_id'])
     feats['Max'] = tf.to_float(feats['item_statistic'][13])
     feats['min'] = tf.to_float(feats['item_statistic'][3])
@@ -124,7 +124,7 @@ def input_parse_exmp(serial_exmp):
     feats['item_statistic'] = tf.map_fn(tf.math.log1p, tf.cast(feats['item_statistic'], tf.float32))
     feats['item_ages'] = tf.map_fn(tf.math.reduce_max, feats['item_statistic'])
 
-    feats['user_seqs'] = tf.expand_dims(feats['user_seq_item_id'],axis=0)
+    feats['user_seqs'] = tf.expand_dims(feats['user_seq_item_id'].values,axis=0)
     feats['user_seqs'] = tf.expand_dims(feats['user_seqs'],axis=-1,name='user_seqs')
     feats['user_seqs'] = tf.cast(feats['user_seqs'],tf.float32)
   
@@ -160,7 +160,7 @@ def train_input_fn(filenames):
     dataset = files.apply(tf.contrib.data.parallel_interleave(tf.data.TFRecordDataset,
                                                               cycle_length=args.num_parallel_readers, 
                                                               sloppy=True))
-    if arguments.shuffle_buffer_size > 0:
+    if args.shuffle_buffer_size > 0:
         dataset = dataset.shuffle(args.shuffle_buffer_size)
     dataset = dataset.map(input_parse_exmp, num_parallel_calls=16)
     dataset = dataset.repeat(args.train_epoch).batch(args.batch_size).prefetch(1)
@@ -265,7 +265,6 @@ def build_estimator(run_config):
 
 def main_fn():
     """
-    :param arguments:
     :return:
     """
 
@@ -279,7 +278,7 @@ def main_fn():
                                                save_checkpoints_steps=args.save_checkpoints_steps,
                                                log_step_count_steps=2000)
 
-    model = build_estimator(arguments, run_cfg)
+    model = build_estimator(run_cfg)
     train_files, eval_files = input_dataset_file()
     # train & evaluate
     model.train(input_fn=lambda: train_input_fn(train_files))
