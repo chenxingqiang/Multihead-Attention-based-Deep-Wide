@@ -26,16 +26,16 @@ def parse_arguments():
     arguments_parse.add_argument("--hosts", type=list, default=json.loads(os.environ.get("SM_HOSTS")))
     arguments_parse.add_argument("--current-host", type=str, default=os.environ.get("SM_CURRENT_HOST"))
 
-    arguments_parse.add_argument("--hidden_units", type=str, default="256,128,64",
+    arguments_parse.add_argument("--hidden_units", type=str, default="128,64",
                                  help="Comma-separated list of number of units in each hidden NN layer ")
-    arguments_parse.add_argument("--train_epoch", type=int, default=2, help="Number of training epochs.")
+    arguments_parse.add_argument("--train_epoch", type=int, default=100, help="Number of training epochs.")
     arguments_parse.add_argument("--epoch_per_eval", type=int, default=1,
                                  help="The number of training epochs to run between evaluations.")
-    arguments_parse.add_argument("--batch_size", type=int, default=1024, help="Training batch size")
+    arguments_parse.add_argument("--batch_size", type=int, default=256, help="Training batch size")
     arguments_parse.add_argument("--batch_norm", type=bool, default=True, help="batch_norm.")
-    arguments_parse.add_argument("--shuffle_buffer_size", type=int, default=50000, help="dataset shuffle buffer size")
+    arguments_parse.add_argument("--shuffle_buffer_size", type=int, default=5000, help="dataset shuffle buffer size")
     arguments_parse.add_argument("--learning_rate", type=float, default=3e-4, help="Learning rate")
-    arguments_parse.add_argument("--dropout_rate", type=float, default=0.00, help="Drop out rate")
+    arguments_parse.add_argument("--dropout_rate", type=float, default=0.02, help="Drop out rate")
     arguments_parse.add_argument("--num_parallel_readers", type=int, default=16,
                                  help="number of parallel readers for training data")
     arguments_parse.add_argument("--save_checkpoints_steps", type=int, default=5000,
@@ -108,8 +108,8 @@ def input_parse_exmp(serial_exmp):
     feature_spec.update(other_feature_spec)
     feats = tf.parse_single_example(serial_exmp, features=feature_spec)
     feats['num_item_ids'] = tf.count_nonzero(feats['user_seq_item_id'])
-    feats['Max'] = tf.to_float(feats['item__statistcs'][13])
-    feats['min'] = tf.to_float(feats['item__realtime_statistc'][3])
+    feats['Max'] = tf.to_float(feats['item_statistic'][13])
+    feats['min'] = tf.to_float(feats['item_statistic'][3])
     feats['hour'] = tf.strings.to_number(
         tf.strings.substr(feats['expotime'], 11, 2, name='hour', unit='UTF8_CHAR'))
     feats['minutes'] = tf.strings.to_number(
@@ -135,8 +135,6 @@ def input_parse_exmp(serial_exmp):
                                           to_seq_length=20
                                          )
     feats['seq_attion'] = tf.reshape(feats['seq_attion'],(20,))
-     
-
     click = feats.pop("ctr_label")
 
     return feats, tf.to_float(click)
@@ -224,7 +222,7 @@ def build_estimator(arguments, run_config):
     wide_columns, deep_columns = input_wide_deep_fc()
 
     if arguments.hidden_units is None:
-        hidden_units = [256, 128, 64, 32]
+        hidden_units = [128, 64, 32]
     else:
         hidden_units = arguments.hidden_units.split(',')
 
