@@ -18,14 +18,11 @@ def parse_arguments():
     arguments_parse = argparse.ArgumentParser()
     arguments_parse.add_argument("--model_dir", type=str,
                                  help="Base directory for the model.")
-    arguments_parse.add_argument("--train", type=str,default=os.environ.get("SM_CHANNEL_TRAIN"),
+    arguments_parse.add_argument("--train", type=str,default=''),
                                  help="Directory for storing  data")
-    arguments_parse.add_argument("--test", type=str,default=os.environ.get("SM_CHANNEL_TEST"),
+    arguments_parse.add_argument("--test", type=str,default=''),
                                  help="Directory for storing  data")
-    arguments_parse.add_argument("--sm-model-dir", type=str, default=os.environ.get("SM_MODEL_DIR"))
-    arguments_parse.add_argument("--hosts", type=list, default=json.loads(os.environ.get("SM_HOSTS")))
-    arguments_parse.add_argument("--current-host", type=str, default=os.environ.get("SM_CURRENT_HOST"))
-
+        
     arguments_parse.add_argument("--hidden_units", type=str, default="128,64",
                                  help="Comma-separated list of number of units in each hidden NN layer ")
     arguments_parse.add_argument("--train_epoch", type=int, default=100, help="Number of training epochs.")
@@ -257,7 +254,7 @@ def main_fn(arguments):
     cfg = tf.ConfigProto(log_device_placement=True)
     cfg.gpu_options.allow_growth = True
 
-    run_cfg = tf.estimator.RunConfig().replace(model_dir=arguments.model_dir+"/ctr_checkpoint",
+    run_cfg = tf.estimator.RunConfig().replace(model_dir=arguments.model_dir+"/checkpoint",
                                                session_config=cfg,
                                                keep_checkpoint_max=1,
                                                save_summary_steps=2000,
@@ -275,7 +272,7 @@ def main_fn(arguments):
     print("exporting model ...")
     if arguments.serving_input =='handout':
         serving_input_receiver_fn = serving_input_fn
-        model.export_savedmodel(arguments.model_dir+"/ctr_output_model", serving_input_receiver_fn)
+        model.export_savedmodel(arguments.model_dir+"/output_model", serving_input_receiver_fn)
         print("model saved")
 
     print("quit main")
