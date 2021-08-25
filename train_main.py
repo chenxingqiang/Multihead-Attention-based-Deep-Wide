@@ -10,6 +10,8 @@ import logging
 import tensorflow as tf
 from tensorflow import feature_column as fc
 
+from bert_attention import *
+
 
 def parse_arguments():
     """
