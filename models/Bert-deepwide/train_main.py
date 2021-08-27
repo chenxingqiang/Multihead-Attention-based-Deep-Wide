@@ -26,8 +26,13 @@ def parse_arguments():
     arguments_parse.add_argument("--train_epoch", type=int, default=100, help="Number of training epochs.")
     arguments_parse.add_argument("--epoch_per_eval", type=int, default=1,
                                  help="The number of training epochs to run between evaluations.")
+    arguments_parse.add_argument("--size_per_head", type=int, default=128, help="size per head")
+    arguments_parse.add_argument("--num_attention_heads", type=int, default=10, help="num_attention_heads")
+    arguments_parse.add_argument("--reduce_last_attdim", type=bool, default=True, help="sum reduce last attention context layer dim.")
+    
     arguments_parse.add_argument("--batch_size", type=int, default=256, help="Training batch size")
     arguments_parse.add_argument("--batch_norm", type=bool, default=True, help="batch_norm.")
+    
     arguments_parse.add_argument("--shuffle_buffer_size", type=int, default=5000, help="dataset shuffle buffer size")
     arguments_parse.add_argument("--learning_rate", type=float, default=3e-4, help="Learning rate")
     arguments_parse.add_argument("--dropout_rate", type=float, default=0.02, help="Drop out rate")
@@ -86,7 +91,7 @@ def input_wide_deep_fc():
                     fc.categorical_column_with_hash_bucket("item_state", 2, dtype=tf.string),
                     ]
 
-    
+  
     deep_columns = [user_id_emb,item_statistic_values,item_id_share_emb]
    
     return wide_columns, deep_columns
@@ -132,17 +137,22 @@ def input_parse_exmp(serial_exmp):
     feats['seq_attion'] = attention_layer(from_tensor=feats['user_seqs'],
                                           to_tensor=feats['user_seqs'], 
                                           attention_mask=None,
-                                          num_attention_heads=10,
-                                          size_per_head=128,
+                                          num_attention_heads=args.num_attention_heads,
+                                          size_per_head=args.size_per_head,
                                           attention_probs_dropout_prob=0.2,
                                           do_return_2d_tensor=True,
                                           initializer_range=0.02,
                                           batch_size=args.batch_size,
                                           from_seq_length=20,
-                                          to_seq_length=20
+                                          to_seq_length=20,
+                                          sum_reduce_last_dim=args.reduce_last_attdim
                                          )
     
-    seq_attion = fc.numeric_column("seq_attion",dtype=tf.float32)
+    if args.reduce_last_attdim:
+        seq_attion = fc.numeric_column("seq_attion",shape=(20),dtype=tf.float32)
+    else:
+        seq_attion = fc.numeric_column("seq_attion",shape=(20,args.num_attention_heads*args.size_per_head),dtype=tf.float32)
+        
     bar_dead_ruler = fc.numeric_column("bar_dead_ruler",dtype=tf.float32)
     minutes = fc.numeric_column("minutes",dtype=tf.float32)
 
@@ -263,7 +273,7 @@ def build_estimator(run_config):
     return model
 
 
-def main_fn():
+def main_fn(unused_argvs):
     """
     :return:
     """
