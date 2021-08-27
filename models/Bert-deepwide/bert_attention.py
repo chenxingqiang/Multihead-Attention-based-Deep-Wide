@@ -341,5 +341,8 @@ def attention_layer(from_tensor,
     context_layer = tf.reshape(
         context_layer,
         [batch_size, from_seq_length, num_attention_heads * size_per_head])
+    
+   if sum_reduce_last_dim:
+     context_layer = tf.reduce_sum(context_layer,axis=-1)
 
   return context_layer
